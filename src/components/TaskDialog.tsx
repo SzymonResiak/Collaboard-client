@@ -3,11 +3,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 
-interface User {
-  id: string;
-  name: string;
-}
-
 interface TaskDetails {
   id: string;
   title: string;

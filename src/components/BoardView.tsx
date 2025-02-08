@@ -51,9 +51,14 @@ export default function BoardView({
 }: BoardViewProps) {
   const isAdmin = admins.includes(currentUserId);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [localTasks, setLocalTasks] = useState(tasks);
+
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
 
   const getTasksForColumn = (columnName: string) => {
-    return tasks.filter((task) => task.status === columnName);
+    return localTasks.filter((task) => task.status === columnName);
   };
 
   const handleDragStart = (start: any) => {
@@ -72,16 +77,15 @@ export default function BoardView({
     if (sourceColumn === destColumn) return;
 
     try {
-      const tasksInDestColumn = getTasksForColumn(destColumn);
-      const newIndex = tasksInDestColumn.length;
-
-      if (destination.index !== newIndex) {
-        destination.index = newIndex;
-      }
+      const updatedTasks = localTasks.map((task) =>
+        task.id === draggableId ? { ...task, status: destColumn } : task
+      );
+      setLocalTasks(updatedTasks);
 
       await onTaskMove(draggableId, destColumn, sourceColumn);
     } catch (error) {
       console.error('Error moving task:', error);
+      setLocalTasks(tasks);
     }
   };
 
