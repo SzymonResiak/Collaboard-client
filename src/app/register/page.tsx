@@ -2,37 +2,54 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation'; // For redirection
 
 export default function RegisterPage() {
-  const [name, setName] = useState('');
+  const [login, setLogin] = useState(''); // login as username
+  const [name, setName] = useState(''); // name as full name (first and last)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const router = useRouter(); // Hook for navigation
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
     try {
-      const response = await fetch('/api/register', {
-        // Pointing to the API route
+      const registerResponse = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          login,
+          password,
+          name,
+          email,
+        }),
       });
 
-      const data = await response.json();
-      if (response.ok) {
+      const registerData = await registerResponse.json();
+
+      if (registerResponse.ok) {
         setSuccess('Registration successful');
         setError('');
+
+        const loginResponse = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login, password }), // login as username
+        });
+
+        const loginData = await loginResponse.json();
+
+        if (loginResponse.ok) {
+          localStorage.setItem('accessToken', loginData.accessToken);
+          router.push('/boards');
+        } else {
+          setError(loginData.error || 'Login failed');
+        }
       } else {
-        setError(data.error || 'Registration failed');
+        setError(registerData.error || 'Registration failed');
       }
     } catch (error) {
       setError('An error occurred during registration');
@@ -48,7 +65,19 @@ export default function RegisterPage() {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Name
+              Username (login)
+            </label>
+            <input
+              type="text"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              className="mt-1 w-full rounded-md border p-2 focus:border-blue-500 focus:outline-none focus:ring"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Full Name (First and Last)
             </label>
             <input
               type="text"
@@ -60,7 +89,7 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Email
+              Email (used as login)
             </label>
             <input
               type="email"
@@ -78,18 +107,6 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border p-2 focus:border-blue-500 focus:outline-none focus:ring"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
               className="mt-1 w-full rounded-md border p-2 focus:border-blue-500 focus:outline-none focus:ring"
               required
             />

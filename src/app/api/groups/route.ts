@@ -6,7 +6,7 @@ export async function GET() {
     const cookieStore = cookies();
     const token = (await cookieStore).get('accessToken');
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/boards`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
       headers: {
         Authorization: token ? `Bearer ${token.value}` : '',
         'Cache-Control': 'no-store, must-revalidate',
@@ -17,7 +17,7 @@ export async function GET() {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error || 'Failed to fetch boards' },
+        { error: data.error || 'Failed to fetch groups' },
         {
           status: response.status,
           headers: {
@@ -35,7 +35,7 @@ export async function GET() {
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: 'An error occurred' },
+      { error: 'An error occurred while fetching groups' },
       {
         status: 500,
         headers: {

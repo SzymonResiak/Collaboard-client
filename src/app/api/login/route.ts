@@ -1,22 +1,38 @@
-// app/api/register/route.ts
-
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { name, password } = await request.json();
+    const { login, password } = await req.json();
 
-    // Here you would add your backend logic for user registration (e.g., saving to a database)
-    if (!name || !password) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/auth/signin`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, password }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error || 'Login failed' },
+        { status: response.status }
+      );
     }
 
-    // Simulating successful registration
-    return NextResponse.json({ message: 'User registered successfully' });
+    (await cookies()).set('accessToken', data.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'An error occurred during registration' },
-      { status: 500 }
-    );
+    console.error('Login error:', error);
+    return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
   }
 }

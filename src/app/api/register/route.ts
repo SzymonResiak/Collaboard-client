@@ -1,22 +1,29 @@
-// app/api/login/route.ts
-
 import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { email, password } = await request.json();
+    const { login, password, email, name } = await req.json();
 
-    // Here you would add your login logic (e.g., checking credentials in the database)
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/auth/signup`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, password, email, name }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error || 'Registration failed' },
+        { status: response.status }
+      );
     }
 
-    // Simulating successful login
-    return NextResponse.json({ message: 'Login successful' });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'An error occurred during login' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'An error occurred' }, { status: 500 });
   }
 }
