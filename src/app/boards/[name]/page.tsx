@@ -7,12 +7,17 @@ import BoardView from '@/components/BoardView';
 import { BoardColor } from '@/types/colors';
 import TaskDialog from '@/components/TaskDialog';
 import { useUser } from '@/contexts/UserContext';
+import CreateTaskDialog from '@/components/CreateTaskDialog';
+import { useBoards } from '@/hooks/useBoards';
+import { useGroups } from '@/hooks/useGroups';
 
 interface Task {
   id: string;
   title: string;
   description: string;
-  status: string; // odpowiada nazwie kolumny
+  status: string;
+  assignees?: string[];
+  dueDate?: string;
 }
 
 interface Board {
@@ -30,7 +35,7 @@ interface TaskDetails {
   description: string;
   status: string;
   assignees: string[];
-  dueDate: string;
+  dueDate?: string;
   board: string;
 }
 
@@ -39,30 +44,55 @@ export default function BoardPage({
 }: {
   params: Promise<{ name: string }>;
 }) {
-  const resolvedParams = use(params);
   const router = useRouter();
-  const { user, isLoading: userLoading } = useUser();
+  const { user } = useUser();
   const [board, setBoard] = useState<Board | null>(null);
-  const [selectedTask, setSelectedTask] = useState<TaskDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [updatedTaskId, setUpdatedTaskId] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'success' | 'error' | null>(
     null
   );
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  const boards = useBoards();
+  const groups = useGroups();
+
+  const { name } = use(params);
+
+  useEffect(() => {
+    const fetchBoard = async () => {
+      try {
+        setIsLoading(true);
+        const encodedName = encodeURIComponent(name);
+        const response = await fetch(`/api/boards/name/${encodedName}`);
+        const data = await response.json();
+
+        if (data.error) {
+          console.error('Error fetching board:', data.error);
+          router.push('/boards');
+          return;
+        }
+
+        setBoard(data);
+      } catch (error) {
+        console.error('Error:', error);
+        router.push('/boards');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchBoard();
+    }
+  }, [name, user, router]);
 
   const handleTaskClick = (taskId: string) => {
-    // Znajdź task w board.tasks
-    const taskToEdit = board?.tasks.find((task) => task.id === taskId);
+    if (!board) return;
+
+    const taskToEdit = board.tasks.find((task) => task.id === taskId);
     if (taskToEdit) {
-      setSelectedTask({
-        id: taskToEdit.id,
-        title: taskToEdit.title,
-        description: taskToEdit.description,
-        status: taskToEdit.status,
-        assignees: taskToEdit.assignees || [],
-        dueDate: taskToEdit.dueDate,
-        board: board.name,
-      });
+      setSelectedTask(taskToEdit);
     }
   };
 
@@ -70,7 +100,6 @@ export default function BoardPage({
     setUpdatedTaskId(updatedTask.id);
     setUpdateStatus('success');
 
-    // Aktualizujemy lokalnie task w board.tasks
     if (board) {
       const updatedTasks = board.tasks.map((task) =>
         task.id === updatedTask.id ? { ...task, ...updatedTask } : task
@@ -79,7 +108,6 @@ export default function BoardPage({
     }
     setSelectedTask(null);
 
-    // Reset statusu po 2 sekundach
     setTimeout(() => {
       setUpdatedTaskId(null);
       setUpdateStatus(null);
@@ -92,7 +120,6 @@ export default function BoardPage({
     oldStatus: string
   ) => {
     try {
-      // Najpierw aktualizujemy lokalny stan
       if (board) {
         const updatedTasks = board.tasks.map((task) =>
           task.id === taskId ? { ...task, status: newStatus } : task
@@ -100,7 +127,6 @@ export default function BoardPage({
         setBoard({ ...board, tasks: updatedTasks });
       }
 
-      // Następnie wysyłamy request do API
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: {
@@ -122,7 +148,6 @@ export default function BoardPage({
     } catch (error) {
       console.error('Error moving task:', error);
 
-      // Przywracamy poprzedni stan w przypadku błędu
       if (board) {
         const revertedTasks = board.tasks.map((task) =>
           task.id === taskId ? { ...task, status: oldStatus } : task
@@ -139,35 +164,35 @@ export default function BoardPage({
     }
   };
 
-  useEffect(() => {
-    const fetchBoard = async () => {
-      if (!user) return;
-
+  const handleTaskCreate = async (newTask: any) => {
+    if (board) {
       try {
-        setIsLoading(true);
-        const encodedName = encodeURIComponent(resolvedParams.name);
-        const boardResponse = await fetch(`/api/boards/${encodedName}`);
-        const boardData = await boardResponse.json();
+        const updatedTasks = [...board.tasks, newTask];
+        setBoard({
+          ...board,
+          tasks: updatedTasks,
+        });
 
-        if (boardData.error) {
-          console.error('Error fetching board:', boardData.error);
-          router.push('/boards');
-          return;
+        const encodedName = encodeURIComponent(name);
+        const boardResponse = await fetch(`/api/boards/name/${encodedName}`, {
+          headers: {
+            'Cache-Control': 'no-store, must-revalidate',
+          },
+        });
+
+        if (!boardResponse.ok) {
+          throw new Error('Failed to refresh board data');
         }
 
+        const boardData = await boardResponse.json();
         setBoard(boardData);
       } catch (error) {
-        console.error('Error in fetchBoard:', error);
-        router.push('/boards');
-      } finally {
-        setIsLoading(false);
+        console.error('Error refreshing board:', error);
       }
-    };
+    }
+  };
 
-    fetchBoard();
-  }, [resolvedParams.name, user]);
-
-  if (userLoading || isLoading) {
+  if (isLoading) {
     return <div className="p-4">Loading...</div>;
   }
 
@@ -194,6 +219,7 @@ export default function BoardPage({
         updatedTaskId={updatedTaskId}
         updateStatus={updateStatus}
         onTaskMove={handleTaskMove}
+        onCreateTask={() => setCreateTaskOpen(true)}
       />
       {selectedTask && (
         <TaskDialog
@@ -212,6 +238,13 @@ export default function BoardPage({
           }}
         />
       )}
+      <CreateTaskDialog
+        open={createTaskOpen}
+        onClose={() => setCreateTaskOpen(false)}
+        boards={boards}
+        groups={groups}
+        onTaskCreate={handleTaskCreate}
+      />
     </>
   );
 }

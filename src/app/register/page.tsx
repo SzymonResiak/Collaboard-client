@@ -2,16 +2,16 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // For redirection
+import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
-  const [login, setLogin] = useState(''); // login as username
-  const [name, setName] = useState(''); // name as full name (first and last)
+  const [login, setLogin] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const router = useRouter(); // Hook for navigation
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +37,7 @@ export default function RegisterPage() {
         const loginResponse = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ login, password }), // login as username
+          body: JSON.stringify({ login, password }),
         });
 
         const loginData = await loginResponse.json();

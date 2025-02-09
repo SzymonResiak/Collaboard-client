@@ -3,19 +3,228 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 0%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 96%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 89.8%;
+  --input: 0 0% 89.8%;
+  --ring: 0 0% 0%;
+  --radius: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base styles */
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-nunito);
+}
+
+input,
+textarea,
+select,
+option {
+  color: rgb(17 24 39);
+}
+
+input::placeholder,
+textarea::placeholder,
+select::placeholder {
+  color: rgb(156 163 175);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+label,
+a {
+  color: rgb(17 24 39);
+}
+
+/* Custom components */
+.button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition-property: color, background-color;
+  outline: none;
+}
+
+.input-base {
+  display: flex;
+  height: 2.5rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(229 231 235);
+  background-color: white;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: black;
+}
+
+.input-base:focus {
+  border-color: black;
+  outline: none;
+  box-shadow: 0 0 0 1px black;
+}
+
+.dialog-content {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  max-height: 85vh;
+  width: 90vw;
+  max-width: 700px;
+  transform: translate(-50%, -50%);
+  border-radius: 0.75rem;
+  background-color: white;
+  padding: 2rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  outline: none;
+  overflow-y: auto;
+}
+
+.content-container {
+  width: 100%;
+  background-color: white;
+  border-radius: 1rem;
+  border: 1px solid rgb(229 231 235);
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.dialog-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  color: black;
+  margin-bottom: 1.5rem;
+}
+
+.select-base {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.75rem;
+  background-color: white;
+  color: black;
+}
+
+.select-base:focus {
+  border-color: black;
+  outline: none;
+  box-shadow: 0 0 0 1px black;
+}
+
+.nav-link {
+  color: rgb(17 24 39);
+  font-weight: 500;
+  font-size: 1rem;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: black;
+}
+
+.nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.5rem 1.5rem;
+  font-weight: 500;
+  font-size: 1rem;
+  background-color: black;
+  color: white;
+  transition: background-color 0.2s;
+}
+
+.nav-button:hover {
+  background-color: rgb(17 17 17);
+}
+
+.form-field {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.5rem;
+  background-color: white;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.form-field[multiple] {
+  padding: 0.5rem;
+}
+
+.form-field[multiple] option {
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.form-field[multiple] option:checked {
+  background-color: black;
+  color: white;
+}
+
+.select-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.select-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.select-item:hover {
+  background-color: rgb(243 244 246);
+}
+
+.select-item[data-selected] {
+  background-color: black;
+  color: white;
+}
+
+/* Scrollbar styles */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
 }

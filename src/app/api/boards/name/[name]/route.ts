@@ -3,18 +3,16 @@ import { cookies } from 'next/headers';
 
 export async function GET(
   req: NextRequest,
-  context: { params: { name: string } }
+  context: { params: Promise<{ name: string }> }
 ) {
   try {
-    const name = context.params.name;
+    const params = await context.params;
+    const name = decodeURIComponent(params.name);
     const cookieStore = cookies();
     const token = (await cookieStore).get('accessToken');
 
-    if (!name) {
-      return NextResponse.json(
-        { error: 'Nazwa tablicy jest wymagana' },
-        { status: 400 }
-      );
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const response = await fetch(
@@ -23,7 +21,8 @@ export async function GET(
       )}`,
       {
         headers: {
-          Authorization: token ? `Bearer ${token.value}` : '',
+          Authorization: `Bearer ${token.value}`,
+          'Cache-Control': 'no-store, must-revalidate',
         },
       }
     );
@@ -32,15 +31,15 @@ export async function GET(
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error || 'Nie udało się pobrać szczegółów tablicy' },
+        { error: data.error || 'Failed to fetch board details' },
         { status: response.status }
       );
     }
 
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (err) {
     return NextResponse.json(
-      { error: 'Wystąpił błąd podczas pobierania tablicy' },
+      { error: 'An error occurred while fetching the board' },
       { status: 500 }
     );
   }

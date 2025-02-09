@@ -1,32 +1,44 @@
+import { fontFamily } from 'tailwindcss/defaultTheme';
+
 /** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
-  ],
+const config = {
+  darkMode: ['class'],
+  content: ['./src/**/*.{ts,tsx}'],
   theme: {
+    container: {
+      center: true,
+      padding: '2rem',
+      screens: {
+        '2xl': '1400px',
+      },
+    },
     extend: {
+      colors: {
+        border: 'rgb(var(--border))',
+        input: 'rgb(var(--input))',
+        ring: 'rgb(var(--ring))',
+        background: 'rgb(var(--background))',
+        foreground: 'rgb(var(--foreground))',
+        primary: {
+          DEFAULT: 'rgb(var(--primary))',
+          foreground: 'rgb(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'rgb(var(--secondary))',
+          foreground: 'rgb(var(--secondary-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
       fontFamily: {
-        sans: ['var(--font-geist-sans)'],
-        mono: ['var(--font-geist-mono)'],
-      },
-      keyframes: {
-        'fade-in': {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-        'success-gradient': {
-          '0%': { borderColor: 'transparent' },
-          '50%': { borderColor: '#22c55e' }, // green-500
-          '100%': { borderColor: 'transparent' },
-        },
-      },
-      animation: {
-        'fade-in': 'fade-in 0.3s ease-out',
-        'success-pulse': 'success-gradient 2s ease-in-out',
+        sans: ['var(--font-sans)', ...fontFamily.sans],
+        nunito: ['var(--font-nunito)', ...fontFamily.sans],
       },
     },
   },
-  plugins: [],
 };
+
+export default config;

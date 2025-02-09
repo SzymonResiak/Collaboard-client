@@ -6,9 +6,13 @@ export async function GET() {
     const cookieStore = cookies();
     const token = (await cookieStore).get('accessToken');
 
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/boards`, {
       headers: {
-        Authorization: token ? `Bearer ${token.value}` : '',
+        Authorization: `Bearer ${token.value}`,
         'Cache-Control': 'no-store, must-revalidate',
       },
     });
@@ -18,30 +22,16 @@ export async function GET() {
     if (!response.ok) {
       return NextResponse.json(
         { error: data.error || 'Failed to fetch boards' },
-        {
-          status: response.status,
-          headers: {
-            'Cache-Control': 'no-store, must-revalidate',
-          },
-        }
+        { status: response.status }
       );
     }
 
-    return NextResponse.json(data, {
-      headers: {
-        'Cache-Control': 'no-store, must-revalidate',
-      },
-    });
+    return NextResponse.json(data);
   } catch (error) {
-    console.error(error);
+    console.error('Error fetching boards:', error);
     return NextResponse.json(
-      { error: 'An error occurred' },
-      {
-        status: 500,
-        headers: {
-          'Cache-Control': 'no-store, must-revalidate',
-        },
-      }
+      { error: 'An error occurred while fetching boards' },
+      { status: 500 }
     );
   }
 }

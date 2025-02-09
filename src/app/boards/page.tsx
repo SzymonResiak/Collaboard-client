@@ -17,6 +17,7 @@ interface Column {
 }
 
 interface Board {
+  id: string;
   name: string;
   description: string;
   color: BoardColor;
@@ -28,6 +29,7 @@ interface Board {
     description: string;
     status: string;
   }>;
+  favourite?: boolean;
 }
 
 export default function BoardsPage() {
@@ -38,12 +40,10 @@ export default function BoardsPage() {
   useEffect(() => {
     const fetchUserAndBoards = async () => {
       try {
-        // Pobierz ID zalogowanego użytkownika
         const userResponse = await fetch('/api/user');
         const userData = await userResponse.json();
         setCurrentUserId(userData.id);
 
-        // Pobierz tablice
         const boardsResponse = await fetch('/api/boards');
         const boardsData = await boardsResponse.json();
 
@@ -61,6 +61,22 @@ export default function BoardsPage() {
     fetchUserAndBoards();
   }, []);
 
+  const refreshBoards = async () => {
+    try {
+      const boardsResponse = await fetch('/api/boards');
+      const boardsData = await boardsResponse.json();
+
+      if (boardsData.error) {
+        console.error('Error fetching boards:', boardsData.error);
+        return;
+      }
+
+      setBoards(boardsData);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
   return (
     <div className="h-full overflow-auto">
       <h1 className="text-2xl font-bold mb-6">Your Boards</h1>
@@ -69,6 +85,7 @@ export default function BoardsPage() {
         {boards.map((board) => (
           <BoardCard
             key={board.name}
+            id={board.id}
             name={board.name}
             description={board.description}
             color={board.color}
@@ -76,6 +93,8 @@ export default function BoardsPage() {
             tasks={board.tasks || []}
             admins={board.admins}
             currentUserId={currentUserId}
+            favourite={board.favourite}
+            onFavouriteChange={refreshBoards}
             onClick={() =>
               router.push(`/boards/${encodeURIComponent(board.name)}`)
             }

@@ -1,13 +1,9 @@
 'use client';
 
 import { BoardColor } from '@/types/colors';
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from 'react-beautiful-dnd';
+import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import { useState, useEffect } from 'react';
+import { StrictModeDroppable } from './StrictModeDroppable';
 
 interface Task {
   id: string;
@@ -113,7 +109,7 @@ export default function BoardView({
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 select-none">
-              {name}
+              Your Boards
             </h1>
             <p className="text-gray-600 select-none">{description}</p>
           </div>
@@ -136,27 +132,7 @@ export default function BoardView({
               </svg>
             </button>
           )}
-          <button className="text-gray-600 hover:text-gray-900">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg>
-          </button>
+          <button className="text-gray-600 hover:text-gray-900"></button>
         </div>
       </div>
 
@@ -165,11 +141,11 @@ export default function BoardView({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex h-full space-x-6 p-6">
+          <div className="flex h-full space-x-6 p-6 justify-center">
             {columns.map((columnName) => (
               <div
                 key={columnName}
-                className="flex-shrink-0 w-80 bg-gray-50 rounded-xl"
+                className="flex-shrink-0 w-80 bg-gray-50 rounded-xl flex flex-col"
               >
                 <div
                   className="p-3 rounded-t-xl"
@@ -179,7 +155,7 @@ export default function BoardView({
                     {columnName}
                   </h3>
                 </div>
-                <Droppable
+                <StrictModeDroppable
                   droppableId={columnName}
                   isDropDisabled={false}
                   isCombineEnabled={false}
@@ -190,7 +166,7 @@ export default function BoardView({
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`p-3 space-y-3 min-h-[200px] transition-colors duration-200 ${
+                      className={`p-3 space-y-3 flex-1 transition-colors duration-200 ${
                         snapshot.isDraggingOver ? 'bg-gray-100' : ''
                       }`}
                     >
@@ -243,7 +219,7 @@ export default function BoardView({
                               <h4 className="font-medium text-gray-900 mb-1 select-none">
                                 {task.title}
                               </h4>
-                              <p className="text-sm text-gray-600 line-clamp-2 select-none">
+                              <p className="text-sm text-gray-900 line-clamp-2 select-none">
                                 {task.description}
                               </p>
                             </div>
@@ -253,7 +229,7 @@ export default function BoardView({
                       {provided.placeholder}
                     </div>
                   )}
-                </Droppable>
+                </StrictModeDroppable>
               </div>
             ))}
           </div>
