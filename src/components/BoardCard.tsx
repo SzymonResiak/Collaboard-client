@@ -11,12 +11,17 @@ interface Task {
   status: string;
 }
 
+interface Column {
+  name: string;
+  color: string;
+}
+
 interface BoardCardProps {
   id: string;
   name: string;
   description: string;
   color: BoardColor;
-  columns: string[];
+  columns: Column[];
   tasks: Task[];
   admins: string[];
   currentUserId: string;
@@ -69,20 +74,20 @@ export default function BoardCard({
     }
   };
 
-  // Funkcja do liczenia zadań w danej kolumnie
-  const getTaskCountForColumn = (columnName: string) => {
-    return tasks.filter((task) => task.status === columnName.replace(' ', '_'))
-      .length;
+  const getTaskCountForColumn = (column: Column) => {
+    return tasks.filter(
+      (task) => task.status === column.name.replace(' ', '_').toUpperCase()
+    ).length;
   };
 
   return (
     <>
       <div
         onClick={onClick}
-        className="group cursor-pointer rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all"
+        className="group cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-all w-[420px] h-[260px] flex flex-col rounded-xl"
         style={{ backgroundColor: color }}
       >
-        <div className="h-32 p-4">
+        <div className="flex-1 p-4">
           <div className="flex justify-between items-start mb-2">
             <h3 className="text-xl font-semibold text-gray-900">{name}</h3>
             <div className="flex items-center gap-2">
@@ -136,18 +141,21 @@ export default function BoardCard({
           </div>
           <p className="text-gray-900 text-sm line-clamp-2">{description}</p>
         </div>
-        <div className="p-4 border-t border-black/10">
+
+        <div className="p-4 border-t border-black/10 bg-black/5">
           <div className="flex flex-wrap gap-2">
             {columns.map((column) => {
               const taskCount = getTaskCountForColumn(column);
               if (taskCount === 0) return null;
               return (
-                <div key={column} className="flex items-center text-sm">
-                  <span className="text-gray-900">{column}: </span>
-                  <span className="text-gray-900 font-medium ml-1">
-                    {taskCount}
-                  </span>
-                  <span className="text-gray-400 mx-2">•</span>
+                <div
+                  key={column.name}
+                  className="flex items-center text-sm"
+                  style={{ color: column.color }}
+                >
+                  <span>{column.name}: </span>
+                  <span className="font-medium ml-1">{taskCount}</span>
+                  <span className="mx-2 opacity-40">•</span>
                 </div>
               );
             })}

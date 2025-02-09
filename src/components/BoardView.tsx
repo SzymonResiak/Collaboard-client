@@ -12,11 +12,16 @@ interface Task {
   status: string;
 }
 
+interface Column {
+  name: string;
+  color: string;
+}
+
 interface BoardViewProps {
   name: string;
   description: string;
   color: BoardColor;
-  columns: string[];
+  columns: Column[];
   tasks: Task[];
   admins: string[];
   currentUserId: string;
@@ -30,6 +35,21 @@ interface BoardViewProps {
     oldStatus: string
   ) => Promise<void>;
 }
+
+const getColumnWidth = (columnCount: number) => {
+  switch (columnCount) {
+    case 1:
+      return 'w-[500px]';
+    case 2:
+      return 'w-[450px]';
+    case 3:
+      return 'w-[400px]';
+    case 4:
+      return 'w-[280px]';
+    default:
+      return 'w-[260px]';
+  }
+};
 
 export default function BoardView({
   name,
@@ -53,8 +73,10 @@ export default function BoardView({
     setLocalTasks(tasks);
   }, [tasks]);
 
-  const getTasksForColumn = (columnName: string) => {
-    return localTasks.filter((task) => task.status === columnName);
+  const getTasksForColumn = (column: Column) => {
+    return localTasks.filter(
+      (task) => task.status === column.name.replace(' ', '_').toUpperCase()
+    );
   };
 
   const handleDragStart = (start: any) => {
@@ -127,7 +149,6 @@ export default function BoardView({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
                 />
               </svg>
             </button>
@@ -136,27 +157,27 @@ export default function BoardView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto">
+      <div className="flex-1 p-12">
         <DragDropContext
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex h-full space-x-6 p-6 justify-center">
-            {columns.map((columnName) => (
+          <div className="flex h-full gap-12 justify-center">
+            {columns.map((column) => (
               <div
-                key={columnName}
-                className="flex-shrink-0 w-80 bg-gray-50 rounded-xl flex flex-col"
+                key={column.name}
+                className={`flex-shrink-0 ${getColumnWidth(
+                  columns.length
+                )} flex flex-col rounded-[24px]`}
+                style={{ backgroundColor: column.color }}
               >
-                <div
-                  className="p-3 rounded-t-xl"
-                  style={{ backgroundColor: color }}
-                >
+                <div className="p-3">
                   <h3 className="text-white font-medium select-none">
-                    {columnName}
+                    {column.name}
                   </h3>
                 </div>
                 <StrictModeDroppable
-                  droppableId={columnName}
+                  droppableId={column.name.replace(' ', '_').toUpperCase()}
                   isDropDisabled={false}
                   isCombineEnabled={false}
                   ignoreContainerClipping={false}
@@ -166,11 +187,11 @@ export default function BoardView({
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`p-3 space-y-3 flex-1 transition-colors duration-200 ${
-                        snapshot.isDraggingOver ? 'bg-gray-100' : ''
+                      className={`p-3 space-y-3 overflow-y-scroll overflow-x-hidden h-[calc(100vh-350px)] transition-colors duration-200 column-scroll ${
+                        snapshot.isDraggingOver ? 'bg-white/5' : ''
                       }`}
                     >
-                      {getTasksForColumn(columnName).map((task, index) => (
+                      {getTasksForColumn(column).map((task, index) => (
                         <Draggable
                           key={task.id}
                           draggableId={task.id}

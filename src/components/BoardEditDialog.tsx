@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BoardColor, boardColors } from '@/types/colors';
+import { BOARD_COLORS, BoardColor } from '@/constants/boardColors';
 
 interface Column {
   id: string;
@@ -33,7 +33,9 @@ export default function BoardEditDialog({
 }: BoardEditDialogProps) {
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description);
-  const [color, setColor] = useState<BoardColor>(board.color);
+  const [color, setColor] = useState<BoardColor>(
+    board.color || BOARD_COLORS[0]
+  );
   const [columns, setColumns] = useState<Column[]>(board.columns);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,6 +44,7 @@ export default function BoardEditDialog({
     setIsSubmitting(true);
     try {
       await onSave({ name, description, color, columns });
+      onClose();
     } finally {
       setIsSubmitting(false);
     }
@@ -52,14 +55,14 @@ export default function BoardEditDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Edit Board</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <h2 className="text-xl font-semibold mb-4">Edytuj tablicę</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Board Name
+                Nazwa tablicy
               </label>
               <input
                 type="text"
@@ -71,7 +74,7 @@ export default function BoardEditDialog({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                Opis
               </label>
               <textarea
                 value={description}
@@ -82,20 +85,20 @@ export default function BoardEditDialog({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Color
+                Kolor tablicy
               </label>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(boardColors).map(([key, value]) => (
+              <div className="flex gap-2">
+                {BOARD_COLORS.map((colorOption) => (
                   <button
-                    key={key}
+                    key={colorOption}
                     type="button"
-                    onClick={() => setColor(value)}
-                    className={`w-8 h-8 rounded-full ${
-                      color === value
-                        ? 'ring-2 ring-offset-2 ring-blue-500'
-                        : ''
+                    className={`w-8 h-8 rounded-full border-2 ${
+                      color === colorOption
+                        ? 'border-blue-500'
+                        : 'border-transparent'
                     }`}
-                    style={{ backgroundColor: value }}
+                    style={{ backgroundColor: colorOption }}
+                    onClick={() => setColor(colorOption as BoardColor)}
                   />
                 ))}
               </div>
@@ -161,23 +164,21 @@ export default function BoardEditDialog({
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 pt-4">
+            <div className="flex justify-end space-x-2 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                Cancel
+                Anuluj
               </button>
-              {isAdmin && (
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              )}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? 'Zapisywanie...' : 'Zapisz'}
+              </button>
             </div>
           </form>
         </div>

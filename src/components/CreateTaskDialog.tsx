@@ -24,6 +24,10 @@ interface CreateTaskDialogProps {
     id: string;
     name: string;
     group?: string;
+    columns: Array<{
+      name: string;
+      color: string;
+    }>;
   }>;
   groups: Array<{
     id: string;
@@ -69,7 +73,7 @@ export default function CreateTaskDialog({
       defaultValues: {
         title: '',
         description: '',
-        status: 'TODO',
+        status: '',
         board: '',
         assignees: [],
         checklists: [],
@@ -136,7 +140,7 @@ export default function CreateTaskDialog({
       reset({
         title: '',
         description: '',
-        status: 'TODO',
+        status: '',
         board: '',
         assignees: [],
         checklists: [],
@@ -161,6 +165,18 @@ export default function CreateTaskDialog({
       setValue('board', groupBoard.id);
     }
   };
+
+  useEffect(() => {
+    if (watchedBoard) {
+      const selectedBoard = boards.find((board) => board.id === watchedBoard);
+      if (selectedBoard?.columns?.[0]) {
+        setValue(
+          'status',
+          selectedBoard.columns[0].name.replace(' ', '_').toUpperCase()
+        );
+      }
+    }
+  }, [watchedBoard, boards, setValue]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
