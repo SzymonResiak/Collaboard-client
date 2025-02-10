@@ -6,9 +6,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
     const cookieStore = cookies();
     const token = (await cookieStore).get('accessToken');
+    const { id } = await Promise.resolve(params);
 
     const boardResponse = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/boards/${id}`,

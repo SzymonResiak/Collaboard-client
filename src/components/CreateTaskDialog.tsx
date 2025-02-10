@@ -3,10 +3,9 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Button } from '@/components/ui/button';
 import {
-  Cross2Icon,
-  CheckboxIcon,
   CalendarIcon,
   ChevronDownIcon,
+  TrashIcon,
 } from '@radix-ui/react-icons';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -16,6 +15,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { CheckIcon } from '@radix-ui/react-icons';
+import { Combobox } from '@headlessui/react';
+import { useTheme } from '@/context/ThemeContext';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -40,13 +42,16 @@ interface CreateTaskDialogProps {
 }
 
 interface ChecklistItem {
-  text: string;
+  item: string;
   isCompleted: boolean;
+  color: string;
 }
 
 interface Checklist {
+  id: string;
   name: string;
   items: ChecklistItem[];
+  isEditing: boolean;
 }
 
 interface FormData {
@@ -60,6 +65,11 @@ interface FormData {
   checklists: Checklist[];
 }
 
+interface User {
+  id: string;
+  name: string;
+}
+
 export default function CreateTaskDialog({
   open,
   onClose,
@@ -68,17 +78,26 @@ export default function CreateTaskDialog({
   onTaskCreate,
 }: CreateTaskDialogProps) {
   const [mode, setMode] = useState<'OWN' | 'GROUP'>('OWN');
-  const { control, watch, setValue, reset, register, getValues } =
-    useForm<FormData>({
-      defaultValues: {
-        title: '',
-        description: '',
-        status: '',
-        board: '',
-        assignees: [],
-        checklists: [],
-      },
-    });
+  const {
+    control,
+    watch,
+    setValue,
+    reset,
+    register,
+    handleSubmit: formHandleSubmit,
+    formState: { errors, isSubmitted },
+  } = useForm<FormData>({
+    defaultValues: {
+      title: '',
+      description: '',
+      status: '',
+      board: '',
+      assignees: [],
+      checklists: [],
+    },
+    reValidateMode: 'onSubmit',
+    shouldFocusError: false,
+  });
 
   const {
     fields: checklistFields,
@@ -146,6 +165,8 @@ export default function CreateTaskDialog({
         checklists: [],
       });
       setIsAssigneesOpen(false);
+      setChecklists([]);
+      setDueDate(null);
     }
   }, [open, reset]);
 
@@ -178,11 +199,7 @@ export default function CreateTaskDialog({
     }
   }, [watchedBoard, boards, setValue]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = getValues();
-    console.log('Sending task data:', formData);
-
+  const handleValidSubmit = async (formData: FormData) => {
     try {
       const response = await fetch('/api/tasks', {
         method: 'POST',
@@ -198,14 +215,16 @@ export default function CreateTaskDialog({
             ? new Date(formData.dueDate).toISOString().slice(0, 16)
             : null,
           assignees: formData.assignees || [],
-          checklists: formData.checklists
-            .filter((checklist) => checklist.name && checklist.items.length > 0)
+          checklists: checklists
+            .filter(
+              (checklist) => checklist.name.trim() && checklist.items.length > 0
+            )
             .map((checklist) => ({
               name: checklist.name,
               items: checklist.items
-                .filter((item) => item.text.trim() !== '')
+                .filter((item) => item.item?.trim() !== '')
                 .map((item) => ({
-                  text: item.text,
+                  item: item.item || '',
                   isCompleted: item.isCompleted,
                 })),
             })),
@@ -213,7 +232,6 @@ export default function CreateTaskDialog({
       });
 
       const data = await response.json();
-      console.log('Response:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create task');
@@ -237,13 +255,69 @@ export default function CreateTaskDialog({
   };
 
   const [isAssigneesOpen, setIsAssigneesOpen] = useState(false);
+  const [selectedAssignees, setSelectedAssignees] = useState<User[]>([]);
+
+  const handleAssigneeSelect = (user: User) => {
+    setSelectedAssignees([user]);
+    setIsAssigneesOpen(false);
+  };
+
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+
+  const { colors } = useTheme();
+
+  const getRandomColor = () => {
+    const colorValues = Object.values(colors);
+    return colorValues[Math.floor(Math.random() * colorValues.length)];
+  };
+
+  const addChecklist = () => {
+    const newChecklistId = Date.now().toString();
+    setChecklists([
+      ...checklists,
+      { id: newChecklistId, name: '', items: [], isEditing: true },
+    ]);
+    setTimeout(() => {
+      const input = document.getElementById(`checklist-name-${newChecklistId}`);
+      input?.focus();
+    }, 0);
+  };
+
+  const startEditingChecklist = (checklistId: string) => {
+    setChecklists(
+      checklists.map((list) =>
+        list.id === checklistId ? { ...list, isEditing: true } : list
+      )
+    );
+    setTimeout(() => {
+      const input = document.getElementById(`checklist-name-${checklistId}`);
+      input?.focus();
+    }, 0);
+  };
+
+  const formatAssigneesDisplay = (
+    assignees: Array<{ id: string; name: string }>
+  ) => {
+    if (assignees.length === 0) return 'For: Select assignee...';
+    const names = assignees.map((a) => a.name);
+    return `For: ${names.join(', ')}`;
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={onClose}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] max-h-[85vh] w-[90vw] max-w-[700px] translate-x-[-50%] translate-y-[-50%] rounded-xl bg-white p-8 shadow-xl focus:outline-none overflow-y-auto">
-          <form onSubmit={handleSubmit}>
+        <Dialog.Content className="fixed left-[50%] top-[50%] max-h-[85vh] w-[90vw] max-w-[700px] translate-x-[-50%] translate-y-[-50%] rounded-lg bg-white p-8 shadow-xl focus:outline-none overflow-y-auto">
+          <form
+            onSubmit={formHandleSubmit(handleValidSubmit)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+              }
+            }}
+          >
             <Dialog.Title className="dialog-title">
               Create new Task
             </Dialog.Title>
@@ -257,7 +331,7 @@ export default function CreateTaskDialog({
                     className={cn(
                       'px-6 transition-colors',
                       mode === 'OWN'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-black text-white'
                         : 'bg-white text-gray-700'
                     )}
                   >
@@ -269,7 +343,7 @@ export default function CreateTaskDialog({
                     className={cn(
                       'px-6 transition-colors',
                       mode === 'GROUP'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-black text-white'
                         : 'bg-white text-gray-700'
                     )}
                   >
@@ -298,94 +372,122 @@ export default function CreateTaskDialog({
                     ))}
                   </select>
                 )}
-                <select
-                  className="form-field"
-                  value={watchedBoard}
-                  onChange={(e) => handleBoardChange(e.target.value)}
-                >
-                  <option value="">Select board</option>
-                  {filteredBoards.map((board) => (
-                    <option key={board.id} value={board.id}>
-                      {board.name}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="board"
+                  control={control}
+                  rules={{
+                    required: true,
+                  }}
+                  render={({ field }) => (
+                    <select
+                      {...field}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg transition-colors',
+                        'border border-gray-300',
+                        'focus:outline-none focus:ring-0',
+                        'focus:border-gray-900 focus:border-2',
+                        isSubmitted &&
+                          errors.board &&
+                          !field.value &&
+                          'border-red-500'
+                      )}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        handleBoardChange(e.target.value);
+                      }}
+                    >
+                      <option value="">Select board</option>
+                      {filteredBoards.map((board) => (
+                        <option key={board.id} value={board.id}>
+                          {board.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                />
               </div>
 
               {mode === 'GROUP' && watchedGroup && (
-                <Controller
-                  name="assignees"
-                  control={control}
-                  render={({ field }) => {
-                    const currentGroup = groups.find(
-                      (g) => g.id === watchedGroup
-                    );
-                    const groupUsers = currentGroup?.members || [];
-
-                    return (
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setIsAssigneesOpen(!isAssigneesOpen)}
-                          className="form-field flex items-center gap-2 pr-3"
-                        >
-                          <span className="text-gray-700 truncate flex-1 text-left">
-                            {field.value?.length
-                              ? field.value.join(', ')
-                              : 'Choose assignees'}
-                          </span>
+                <Combobox
+                  value={selectedAssignees[0]?.id || ''}
+                  onChange={(userId: string) => {
+                    if (userId) {
+                      handleAssigneeSelect({
+                        id: userId,
+                        name: userId,
+                      });
+                    } else {
+                      setSelectedAssignees([]);
+                    }
+                  }}
+                >
+                  <div className="relative">
+                    <Combobox.Button className="form-field h-[42px] w-full text-left flex items-center justify-between">
+                      <div className="flex-1 min-w-0 flex items-center justify-between mr-2">
+                        <span className="block truncate max-w-[calc(100%-60px)]">
+                          {formatAssigneesDisplay(selectedAssignees)}
+                        </span>
+                        {selectedAssignees.length > 0 && (
                           <span className="text-gray-500 ml-2 flex-shrink-0">
-                            {field.value?.length > 0 &&
-                              `(${field.value.length})`}
+                            ({selectedAssignees.length})
                           </span>
-                          <ChevronDownIcon
-                            className={cn(
-                              'h-4 w-4 transition-transform',
-                              isAssigneesOpen && 'transform rotate-180'
-                            )}
-                          />
-                        </button>
-
-                        {isAssigneesOpen && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
-                            {groupUsers.map((userId) => (
-                              <label
-                                key={userId}
-                                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={field.value?.includes(userId)}
-                                  onChange={(e) => {
-                                    const newValue = e.target.checked
-                                      ? [...(field.value || []), userId]
-                                      : field.value?.filter(
-                                          (id) => id !== userId
-                                        ) || [];
-                                    field.onChange(newValue);
-                                  }}
-                                  className="h-4 w-4 rounded border-gray-300"
-                                />
-                                <span>{userId}</span>
-                              </label>
-                            ))}
-                          </div>
                         )}
                       </div>
-                    );
-                  }}
-                />
+                      <ChevronDownIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    </Combobox.Button>
+                    <Combobox.Options className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-60 overflow-auto">
+                      <Combobox.Option
+                        value=""
+                        className="px-4 py-2 text-gray-500 cursor-pointer hover:bg-gray-100"
+                      >
+                        For: Select assignee...
+                      </Combobox.Option>
+                      {groups
+                        .find((g) => g.id === watchedGroup)
+                        ?.members.map((userId) => (
+                          <Combobox.Option
+                            key={userId}
+                            value={userId}
+                            className={({ active }) =>
+                              `px-4 py-2 cursor-pointer ${
+                                active ? 'bg-gray-100' : ''
+                              }`
+                            }
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-600">
+                                {userId.charAt(0).toUpperCase()}
+                              </div>
+                              <span>{userId}</span>
+                            </div>
+                          </Combobox.Option>
+                        ))}
+                    </Combobox.Options>
+                  </div>
+                </Combobox>
               )}
 
               <Controller
                 name="title"
                 control={control}
+                rules={{
+                  required: true,
+                }}
                 render={({ field }) => (
                   <input
                     {...field}
-                    className="form-field h-10 w-full"
+                    className={cn(
+                      'w-full px-3 py-2 rounded-lg transition-colors h-10',
+                      'border border-gray-300',
+                      'focus:outline-none focus:ring-0',
+                      'focus:border-gray-900 focus:border-2',
+                      isSubmitted &&
+                        errors.title &&
+                        !field.value &&
+                        'border-red-500'
+                    )}
                     placeholder="Task title"
-                    required
+                    autoFocus={false}
                   />
                 )}
               />
@@ -398,208 +500,242 @@ export default function CreateTaskDialog({
                 style={{ maxHeight: '150px' }}
               />
 
-              <Controller
-                name="dueDate"
-                control={control}
-                render={({ field }) => {
-                  const [inputValue, setInputValue] = useState(
-                    field.value
-                      ? format(new Date(field.value), 'dd/MM/yyyy')
-                      : ''
-                  );
-
-                  useEffect(() => {
-                    setInputValue(
-                      field.value
-                        ? format(new Date(field.value), 'dd/MM/yyyy')
-                        : ''
-                    );
-                  }, [field.value]);
-
-                  const validateAndUpdateDate = () => {
-                    if (!inputValue) {
-                      field.onChange(null);
-                      return;
-                    }
-
-                    const [day, month, year] = inputValue
-                      .split('/')
-                      .map(Number);
-
-                    if (!day || !month || !year) {
-                      setInputValue('');
-                      field.onChange(null);
-                      return;
-                    }
-
-                    const date = new Date(year, month - 1, day, 12);
-
-                    if (
-                      date.getDate() === day &&
-                      date.getMonth() === month - 1 &&
-                      date.getFullYear() === year
-                    ) {
-                      field.onChange(date.toISOString());
-                    } else {
-                      setInputValue('');
-                      field.onChange(null);
-                    }
-                  };
-
-                  return (
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => {
-                          setInputValue(e.target.value);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            validateAndUpdateDate();
-                          }
-                        }}
-                        onBlur={validateAndUpdateDate}
-                        className="form-field"
-                        placeholder="DD/MM/YYYY"
-                      />
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className="p-3">
-                            <CalendarIcon className="h-5 w-5" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={
-                              field.value ? new Date(field.value) : undefined
-                            }
-                            onSelect={(date) =>
-                              field.onChange(date?.toISOString())
-                            }
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  );
-                }}
-              />
-
-              <div className="border-t my-6" />
-
-              <div className="bg-gray-50 rounded-xl p-6">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() =>
-                    appendChecklist({
-                      name: '',
-                      items: [{ text: '', isCompleted: false }],
-                    })
-                  }
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <CheckboxIcon className="h-5 w-5 text-gray-700" />
-                </Button>
-
-                <div className="space-y-4 mt-4">
-                  {checklistFields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className="bg-white rounded-xl shadow-sm p-6 border border-gray-100"
+              <div className="space-y-4">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'form-field w-full justify-start text-left font-normal h-[42px]',
+                        !dueDate && 'text-gray-500'
+                      )}
                     >
-                      <div className="flex items-center justify-between mb-6">
-                        <Controller
-                          name={`checklists.${index}.name`}
-                          control={control}
-                          render={({ field }) => (
-                            <div className="relative flex-1 mr-4">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dueDate ? format(dueDate, 'PPP') : 'Select due date...'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate || undefined}
+                      onSelect={(date: Date | undefined) =>
+                        setDueDate(date || null)
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-4">
+                {checklists.map((checklist, index) => (
+                  <div
+                    key={checklist.id}
+                    className="space-y-2 bg-white rounded-lg shadow-sm p-6 border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      {checklist.isEditing ? (
+                        <div className="flex-1">
+                          <input
+                            id={`checklist-name-${checklist.id}`}
+                            type="text"
+                            value={checklist.name}
+                            onChange={(e) => {
+                              setChecklists(
+                                checklists.map((list) =>
+                                  list.id === checklist.id
+                                    ? { ...list, name: e.target.value }
+                                    : list
+                                )
+                              );
+                            }}
+                            onBlur={() => {
+                              if (checklist.name.trim()) {
+                                const newChecklists = [...checklists];
+                                newChecklists[index] = {
+                                  ...newChecklists[index],
+                                  isEditing: false,
+                                  items: [
+                                    ...newChecklists[index].items,
+                                    {
+                                      text: '',
+                                      isCompleted: false,
+                                      color: getRandomColor(),
+                                    },
+                                  ],
+                                };
+                                setChecklists(newChecklists);
+                              } else {
+                                setChecklists(
+                                  checklists.filter(
+                                    (l) => l.id !== checklist.id
+                                  )
+                                );
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className="w-full px-0 py-2 text-lg font-medium bg-transparent border-b-2 border-gray-100 focus:border-gray-900 focus:outline-none transition-colors"
+                            placeholder="Checklist title"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="flex-1 cursor-pointer hover:opacity-70 transition-opacity"
+                          onClick={() => startEditingChecklist(checklist.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">
+                              Title:
+                            </span>
+                            <h4 className="font-medium text-lg">
+                              {checklist.name}
+                            </h4>
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setChecklists(
+                            checklists.filter((l) => l.id !== checklist.id)
+                          )
+                        }
+                        className="text-red-500 hover:text-red-600 ml-4"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {!checklist.isEditing && (
+                      <div className="space-y-3">
+                        {checklist.items.map((item, itemIndex) => (
+                          <div
+                            key={itemIndex}
+                            className="flex items-center gap-3 group"
+                          >
+                            <div className="relative">
                               <input
-                                {...field}
-                                className="w-full px-0 py-2 text-lg font-medium bg-transparent border-b-2 border-gray-100 focus:border-gray-900 focus:outline-none transition-colors"
-                                placeholder="Checklist name"
+                                type="checkbox"
+                                checked={item.isCompleted}
+                                onChange={(e) => {
+                                  const newItems = [...checklist.items];
+                                  newItems[itemIndex] = {
+                                    ...item,
+                                    isCompleted: e.target.checked,
+                                  };
+                                  setChecklists(
+                                    checklists.map((list) =>
+                                      list.id === checklist.id
+                                        ? { ...list, items: newItems }
+                                        : list
+                                    )
+                                  );
+                                }}
+                                className="peer h-4 w-4 rounded border-2 appearance-none focus:ring-0 focus:ring-offset-0"
+                                style={{ borderColor: item.color }}
+                              />
+                              <CheckIcon
+                                className="absolute h-3 w-3 top-0.5 left-0.5 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"
+                                style={{ color: item.color }}
                               />
                             </div>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => removeChecklist(index)}
-                          className="p-2 text-gray-900 hover:text-gray-900 hover:bg-gray-50 rounded-full transition-colors"
-                        >
-                          <Cross2Icon className="h-5 w-5" />
-                        </Button>
-                      </div>
+                            <input
+                              type="text"
+                              value={item.item || ''}
+                              onChange={(e) => {
+                                const newItems = [...checklist.items];
+                                newItems[itemIndex] = {
+                                  ...item,
+                                  item: e.target.value,
+                                };
 
-                      <div className="space-y-3 pl-2">
-                        <Controller
-                          name={`checklists.${index}.items`}
-                          control={control}
-                          render={({ field }) => (
-                            <>
-                              {field.value?.map((item, itemIndex) => (
-                                <div
-                                  key={itemIndex}
-                                  className="flex items-center gap-4 group"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={item.isCompleted}
-                                    onChange={(e) => {
-                                      const newItems = [...field.value];
-                                      newItems[itemIndex] = {
-                                        ...item,
-                                        isCompleted: e.target.checked,
-                                      };
-                                      field.onChange(newItems);
-                                    }}
-                                    className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={item.text}
-                                    onChange={(e) => {
-                                      const newItems = [...field.value];
-                                      newItems[itemIndex] = {
-                                        ...item,
-                                        text: e.target.value,
-                                      };
-                                      field.onChange(newItems);
+                                if (
+                                  itemIndex === checklist.items.length - 1 &&
+                                  e.target.value.trim() !== ''
+                                ) {
+                                  newItems.push({
+                                    item: '',
+                                    isCompleted: false,
+                                    color: getRandomColor(),
+                                  });
+                                }
 
-                                      if (
-                                        itemIndex === field.value.length - 1 &&
-                                        e.target.value.trim() !== ''
-                                      ) {
-                                        field.onChange([
-                                          ...newItems,
-                                          { text: '', isCompleted: false },
-                                        ]);
-                                      }
-                                    }}
-                                    className="flex-1 px-0 py-2 text-sm bg-transparent border-b border-transparent group-hover:border-gray-100 focus:border-gray-900 focus:outline-none transition-colors"
-                                    placeholder="Add item"
-                                  />
-                                </div>
-                              ))}
-                            </>
-                          )}
-                        />
+                                setChecklists(
+                                  checklists.map((list) =>
+                                    list.id === checklist.id
+                                      ? { ...list, items: newItems }
+                                      : list
+                                  )
+                                );
+                              }}
+                              className="flex-1 px-0 py-1 text-sm bg-transparent border-b border-transparent hover:border-gray-100 focus:border-gray-900 focus:outline-none transition-colors"
+                              placeholder="Add item"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newItems = checklist.items.filter(
+                                  (_, idx) => idx !== itemIndex
+                                );
+                                setChecklists(
+                                  checklists.map((list) =>
+                                    list.id === checklist.id
+                                      ? { ...list, items: newItems }
+                                      : list
+                                  )
+                                );
+                              }}
+                              className="text-red-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="border-t my-6" />
+
+                <button
+                  type="button"
+                  onClick={addChecklist}
+                  className="flex items-center gap-2 text-gray-500 hover:text-gray-700 group"
+                >
+                  <div className="relative">
+                    <div
+                      className="h-4 w-4 rounded border-2 transition-colors group-hover:border-gray-700"
+                      style={{ borderColor: getRandomColor() }}
+                    />
+                    <CheckIcon
+                      className="absolute h-3 w-3 top-0.5 left-0.5"
+                      style={{ color: getRandomColor() }}
+                    />
+                  </div>
+                  <span>Add Checklist</span>
+                </button>
               </div>
             </div>
 
-            <div className="mt-8 flex justify-end gap-3">
-              <Button variant="outline" onClick={onClose}>
+            <div className="flex justify-end space-x-4 mt-8">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 text-black bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors text-base font-medium"
+              >
                 Cancel
-              </Button>
-              <Button type="submit">Save</Button>
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 text-white bg-black rounded-full hover:bg-gray-800 transition-colors text-base font-medium"
+              >
+                Save
+              </button>
             </div>
           </form>
         </Dialog.Content>

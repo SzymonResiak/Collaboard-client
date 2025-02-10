@@ -1,22 +1,48 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useReducer } from 'react';
 import { format } from 'date-fns';
+import { BOARD_COLORS } from '@/constants/boardColors';
+import * as Dialog from '@radix-ui/react-dialog';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon, CheckIcon, TrashIcon } from '@radix-ui/react-icons';
+import { cn } from '@/lib/utils';
+import { useForm, Controller } from 'react-hook-form';
+import { Combobox } from '@headlessui/react';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
+import { useBoards } from '@/hooks/useBoards';
+import { useGroups } from '@/hooks/useGroups';
+import AssigneesSelect from './AssigneesSelect';
+import { taskDialogReducer } from '@/hooks/useTaskDialogReducer';
+import {
+  TaskDetails,
+  Checklist,
+  ChecklistItem as ChecklistItemType,
+} from '@/types';
 
-interface TaskDetails {
-  id: string;
+interface FormData {
   title: string;
-  description: string;
+  description?: string;
   status: string;
-  assignees: string[];
-  dueDate: string;
   board: string;
+  group?: string;
+  dueDate?: string;
+  assignees?: string[];
+  checklists: Checklist[];
 }
 
 interface TaskDialogProps {
   task: TaskDetails;
   currentUserId: string;
   boardAdmins: string[];
+  boardMembers?: string[];
+  hasAssignees: boolean;
   onClose: () => void;
   onSave: (updatedTask: TaskDetails) => Promise<void>;
   onError: (taskId: string) => void;
@@ -25,50 +51,96 @@ interface TaskDialogProps {
 interface ChangedFields {
   title?: string;
   description?: string;
+  status?: string;
   dueDate?: string;
+  startedAt?: string;
+  completedAt?: string;
   assignees?: string[];
+  checklists?: Checklist[];
 }
 
 export default function TaskDialog({
   task,
   currentUserId,
   boardAdmins,
+  boardMembers = [],
+  hasAssignees,
   onClose,
   onSave,
   onError,
 }: TaskDialogProps) {
+  const [state, dispatch] = useReducer(taskDialogReducer, {
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    assignees: task.assignees,
+    dueDate: task.dueDate || null,
+    checklists: task.checklists,
+  });
+
   const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description);
-  const [dueDate, setDueDate] = useState(task.dueDate);
-  const [assignees, setAssignees] = useState(task.assignees);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: 'success' | 'error';
   } | null>(null);
+  const [selectedAssignee, setSelectedAssignee] = useState<string | null>(
+    task.assignees?.[0] || null
+  );
 
   const changedFields = useMemo(() => {
     const changes: ChangedFields = {};
 
-    if (title !== task.title) changes.title = title;
-    if (description !== task.description) changes.description = description;
-    if (dueDate !== task.dueDate) changes.dueDate = dueDate;
-    if (JSON.stringify(assignees) !== JSON.stringify(task.assignees)) {
-      changes.assignees = assignees;
+    if (state.title !== task.title) changes.title = state.title;
+    if (state.description !== task.description)
+      changes.description = state.description;
+    if (state.status !== task.status) changes.status = state.status;
+    if (state.dueDate !== task.dueDate) changes.dueDate = state.dueDate;
+
+    // Porównaj assignees
+    const assigneesChanged =
+      JSON.stringify(state.assignees.sort()) !==
+      JSON.stringify(task.assignees.sort());
+    if (assigneesChanged) changes.assignees = state.assignees;
+
+    // Porównaj checklists bez pól technicznych (id, isEditing)
+    const normalizedChecklists = state.checklists.map((cl) => ({
+      name: cl.name,
+      items: cl.items
+        .filter((item) => item.item.trim())
+        .map((item) => ({
+          item: item.item,
+          isCompleted: item.isCompleted,
+        })),
+    }));
+
+    const normalizedTaskChecklists = task.checklists.map((cl) => ({
+      name: cl.name,
+      items: cl.items.map((item) => ({
+        item: item.item,
+        isCompleted: item.isCompleted,
+      })),
+    }));
+
+    if (
+      JSON.stringify(normalizedChecklists) !==
+      JSON.stringify(normalizedTaskChecklists)
+    ) {
+      changes.checklists = state.checklists;
     }
 
     return changes;
-  }, [title, description, dueDate, assignees, task]);
+  }, [
+    state.title,
+    state.description,
+    state.status,
+    state.dueDate,
+    state.assignees,
+    state.checklists,
+    task,
+  ]);
 
   const canEdit = useMemo(() => {
-    console.log('Checking edit permissions:', {
-      currentUserId,
-      boardAdmins,
-      assignees: task.assignees,
-      isAdmin: boardAdmins.includes(currentUserId),
-      isAssignee: task.assignees.includes(currentUserId),
-    });
     return (
       boardAdmins.includes(currentUserId) ||
       task.assignees.includes(currentUserId)
@@ -81,19 +153,120 @@ export default function TaskDialog({
     }
   }, [canEdit]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEdit || !isEditing || Object.keys(changedFields).length === 0)
-      return;
+  const getRandomColor = () => {
+    const colors = [
+      '#D3CCF1', // purple
+      '#B8C9E8', // blue
+      '#9AAB65', // green
+      '#F6D868', // yellow
+      '#F5B8DA', // pink
+      '#FABE81', // orange
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  const generateId = () => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  useEffect(() => {
+    const initializedChecklists = task.checklists.map((checklist) => {
+      const itemsWithColors = checklist.items.map((item) => ({
+        ...item,
+        id: item.id || generateId(),
+
+        color: item.color || getRandomColor(),
+      }));
+
+      const itemsWithNewElement = [
+        ...itemsWithColors,
+        {
+          id: generateId(),
+          item: '',
+          isCompleted: false,
+          color: getRandomColor(),
+        },
+      ];
+
+      return {
+        id: checklist.id || generateId(),
+        name: checklist.name,
+        items: itemsWithNewElement,
+        isEditing: false,
+      };
+    });
+
+    if (initializedChecklists.length === 0) {
+      initializedChecklists.push({
+        id: generateId(),
+        name: '',
+        items: [
+          {
+            id: generateId(),
+            item: '',
+            isCompleted: false,
+            color: getRandomColor(),
+          },
+        ],
+        isEditing: true,
+      });
+    }
+
+    dispatch({
+      type: 'SET_CHECKLISTS',
+      payload: initializedChecklists,
+    });
+  }, [task]);
+
+  useEffect(() => {
+    if (task.board) {
+      dispatch({ type: 'SET_BOARD', payload: task.board });
+    }
+  }, [task, dispatch]);
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault(); // Zapobiegaj domyślnej akcji formularza
+    }
+
+    if (!canEdit || !isEditing) return;
 
     setIsSubmitting(true);
     try {
+      const updatedData = {
+        ...(state.title !== task.title && { title: state.title }),
+        ...(state.description !== task.description && {
+          description: state.description,
+        }),
+        ...(state.status !== task.status && { status: state.status }),
+        ...(state.dueDate !== task.dueDate && {
+          dueDate: state.dueDate ? new Date(state.dueDate).toISOString() : null,
+        }),
+        ...(JSON.stringify(state.assignees) !==
+          JSON.stringify(task.assignees) && {
+          assignees: state.assignees,
+        }),
+        checklists: state.checklists
+          .filter(
+            (checklist) => checklist.name.trim() && checklist.items.length > 0
+          )
+          .map((checklist) => ({
+            name: checklist.name,
+            items: checklist.items
+              .filter((item) => item.item.trim() !== '')
+              .map((item) => ({
+                item: item.item,
+                isCompleted: item.isCompleted,
+              })),
+          })),
+      };
+
       const response = await fetch(`/api/tasks/${task.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(changedFields),
+        body: JSON.stringify(updatedData),
       });
 
       const data = await response.json();
@@ -105,6 +278,7 @@ export default function TaskDialog({
       await onSave({
         ...task,
         ...changedFields,
+        checklists: state.checklists,
       });
 
       setToast({
@@ -114,213 +288,510 @@ export default function TaskDialog({
 
       setIsEditing(false);
     } catch (error) {
-      console.error('Error saving task:', error);
+      console.error('Error updating task:', error);
       onError(task.id);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const startEditingChecklist = (checklistId: string) => {
+    dispatch({
+      type: 'UPDATE_CHECKLIST',
+      payload: {
+        index: state.checklists.findIndex((cl) => cl.id === checklistId),
+        checklist: {
+          ...state.checklists.find((cl) => cl.id === checklistId)!,
+          isEditing: true,
+        },
+      },
+    });
+    setTimeout(() => {
+      const input = document.getElementById(`checklist-name-${checklistId}`);
+      input?.focus();
+    }, 0);
+  };
+
+  const addChecklist = () => {
+    const newChecklistId = generateId();
+    dispatch({
+      type: 'ADD_CHECKLIST',
+      payload: {
+        id: newChecklistId,
+        name: '',
+        items: [
+          // Dodaj pusty element checkboxa
+          {
+            id: generateId(),
+            item: '',
+            isCompleted: false,
+            color: getRandomColor(),
+          },
+        ],
+        isEditing: true,
+      },
+    });
+    setTimeout(() => {
+      const input = document.getElementById(`checklist-name-${newChecklistId}`);
+      input?.focus();
+    }, 0);
+  };
+
+  const handleAssigneeSelect = (value: string | null) => {
+    setSelectedAssignee(value);
+    if (value) {
+      if (state.assignees.includes(value)) {
+        dispatch({
+          type: 'SET_ASSIGNEES',
+          payload: state.assignees.filter((a) => a !== value),
+        });
+      } else {
+        dispatch({
+          type: 'SET_ASSIGNEES',
+          payload: [...state.assignees, value],
+        });
+      }
+    }
+  };
+
+  const addNewChecklistItem = (checklistIndex: number) => {
+    const newItem = {
+      id: generateId(),
+      item: '',
+      isCompleted: false,
+      color: getRandomColor(),
+    };
+
+    const newChecklists = [...state.checklists];
+    newChecklists[checklistIndex].items.push(newItem);
+
+    dispatch({
+      type: 'UPDATE_CHECKLIST',
+      payload: {
+        index: checklistIndex,
+        checklist: {
+          ...newChecklists[checklistIndex],
+          items: newChecklists[checklistIndex].items,
+        },
+      },
+    });
+  };
+
+  const showAssignees = hasAssignees;
+
+  const handleAssigneesChange = (newAssignees: string[]) => {
+    dispatch({ type: 'SET_ASSIGNEES', payload: newAssignees });
+  };
+
+  // Dodaj nowy useMemo do sprawdzania czy są zmiany
+  const hasChanges = useMemo(() => {
+    return Object.keys(changedFields).length > 0;
+  }, [changedFields]);
+
+  const handleChecklistItemChange = (
+    checklistIndex: number,
+    itemIndex: number,
+    updatedItem: ChecklistItemType
+  ) => {
+    const newChecklists = [...state.checklists];
+    const checklist = newChecklists[checklistIndex];
+    const newItems = [...checklist.items];
+
+    const isLastItem = itemIndex === newItems.length - 1;
+    const isEmptyItem = newItems[itemIndex].item === '';
+
+    if (isLastItem && isEmptyItem && updatedItem.item.trim() !== '') {
+      newItems[itemIndex] = {
+        ...updatedItem,
+        item: updatedItem.item.trim(),
+        color: newItems[itemIndex].color,
+      };
+
+      newItems.push({
+        id: generateId(),
+        item: '',
+        isCompleted: false,
+        color: getRandomColor(),
+      });
+    } else {
+      newItems[itemIndex] = {
+        ...updatedItem,
+        color: newItems[itemIndex].color,
+      };
+    }
+
+    dispatch({
+      type: 'UPDATE_CHECKLIST',
+      payload: {
+        index: checklistIndex,
+        checklist: {
+          ...checklist,
+          items: newItems,
+        },
+      },
+    });
+  };
+
+  const handleChecklistItemRemove = (
+    checklistIndex: number,
+    itemIndex: number
+  ) => {
+    const newChecklists = [...state.checklists];
+    const checklist = newChecklists[checklistIndex];
+    const newItems = [...checklist.items];
+
+    newItems.splice(itemIndex, 1);
+
+    const lastItem = newItems[newItems.length - 1];
+    const hasEmptyItem = lastItem && lastItem.item === '';
+
+    if (!hasEmptyItem) {
+      newItems.push({
+        id: generateId(),
+        item: '',
+        isCompleted: false,
+        color: getRandomColor(),
+      });
+    }
+
+    dispatch({
+      type: 'UPDATE_CHECKLIST',
+      payload: {
+        index: checklistIndex,
+        checklist: {
+          ...checklist,
+          items: newItems,
+        },
+      },
+    });
+  };
+
+  const { control } = useForm({
+    defaultValues: {
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      dueDate: task.dueDate,
+      assignees: task.assignees,
+      checklists: task.checklists,
+    },
+  });
+
+  const getNewItemKey = (checklistId: string, itemIndex: number) => {
+    return `new-item-${checklistId}-${itemIndex}-${Date.now()}`;
+  };
+
   return (
-    <>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div
-          className={`bg-white rounded-xl w-full max-w-2xl overflow-hidden border-2 transition-all ${
-            toast?.type === 'success' ? 'animate-success-pulse' : ''
-          } ${
-            toast?.type === 'error' ? 'border-red-500' : 'border-transparent'
-          }`}
+    <Dialog.Root open={true}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+        <Dialog.Content
+          className="fixed left-[50%] top-[50%] max-h-[85vh] w-[90vw] max-w-[700px] translate-x-[-50%] translate-y-[-50%] rounded-lg bg-white p-8 shadow-xl focus:outline-none overflow-y-auto"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          aria-describedby="task-dialog-description"
         >
-          {toast?.type === 'error' && (
-            <div className="bg-red-500 text-white px-4 py-2 text-sm font-medium animate-fade-in">
-              Update failed
-            </div>
-          )}
-          <div className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="text-2xl font-bold w-full px-2 py-1 border rounded"
+          <Dialog.Title className="dialog-title">Edit Task</Dialog.Title>
+          <Dialog.Description id="task-dialog-description" className="sr-only">
+            Edit task details including title, description, due date, assignees,
+            and checklists
+          </Dialog.Description>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSubmit();
+            }}
+            className="space-y-6"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+              }
+            }}
+          >
+            <div className="space-y-6">
+              {/* Title Input */}
+              <input
+                value={state.title}
+                onChange={(e) =>
+                  dispatch({ type: 'SET_TITLE', payload: e.target.value })
+                }
+                className={cn(
+                  'w-full px-3 py-2 rounded-lg transition-colors h-10',
+                  'border border-gray-300',
+                  'focus:outline-none focus:ring-0',
+                  'focus:border-gray-900 focus:border-2'
+                )}
+                placeholder="Task title"
+                disabled={!canEdit}
+                autoFocus={false}
+              />
+
+              {/* Description */}
+              <textarea
+                value={state.description}
+                onChange={(e) =>
+                  dispatch({ type: 'SET_DESCRIPTION', payload: e.target.value })
+                }
+                className="w-full p-3 border rounded-lg text-sm resize-none overflow-y-auto focus:border-gray-900 focus:border-2 focus:outline-none"
+                placeholder="Description"
+                rows={4}
+                style={{ maxHeight: '150px' }}
+                disabled={!canEdit}
+                autoFocus={false}
+              />
+
+              {/* Due Date */}
+              <div className="w-1/2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal h-[42px]',
+                        'bg-white border-gray-300 hover:bg-gray-50',
+                        !state.dueDate && 'text-gray-500'
+                      )}
                       disabled={!canEdit}
-                    />
-                  ) : (
-                    <h2 className="text-2xl font-bold text-gray-900">
-                      {title}
-                    </h2>
-                  )}
-                </div>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(!isEditing)}
-                    className={`text-gray-600 hover:text-gray-900 p-2 ${
-                      isEditing ? 'bg-gray-100' : ''
-                    }`}
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d={
-                          isEditing
-                            ? 'M5 13l4 4L19 7'
-                            : 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
-                        }
-                      />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                {isEditing ? (
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg resize-none h-32"
-                    disabled={!canEdit}
-                  />
-                ) : (
-                  <p className="text-gray-600">{description}</p>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Due Date
-                  </label>
-                  <div className="flex items-center">
-                    {isEditing ? (
-                      <input
-                        type="datetime-local"
-                        value={dueDate.slice(0, 16)}
-                        onChange={(e) => setDueDate(e.target.value)}
-                        className="px-3 py-2 border rounded-lg"
-                        disabled={!canEdit}
-                      />
-                    ) : (
-                      <span className="text-gray-600">
-                        {format(new Date(dueDate), 'PPP')}
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span>
+                        {state.dueDate
+                          ? format(new Date(state.dueDate), 'PPP')
+                          : 'Select due date...'}
                       </span>
-                    )}
-                    <svg
-                      className="w-5 h-5 ml-2 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={
+                        state.dueDate ? new Date(state.dueDate) : undefined
+                      }
+                      onSelect={(date) =>
+                        dispatch({
+                          type: 'SET_DUE_DATE',
+                          payload: date?.toISOString() || null,
+                        })
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assignees
-                </label>
-                <div className="space-y-2">
-                  {assignees.map((assigneeId) => (
-                    <div
-                      key={assigneeId}
-                      className="flex items-center justify-between bg-gray-50 p-2 rounded"
-                    >
-                      <span>{assigneeId}</span>
-                      {isEditing && canEdit && (
+              {/* Assignees */}
+              {showAssignees && (
+                <div className="w-full">
+                  <AssigneesSelect
+                    assignees={state.assignees}
+                    boardMembers={boardMembers || []}
+                    onChange={handleAssigneesChange}
+                  />
+                </div>
+              )}
+
+              {/* Checklists */}
+              <div className="space-y-4">
+                {state.checklists.map((checklist, index) => (
+                  <div
+                    key={checklist.id}
+                    className="space-y-4 bg-white p-4 rounded-lg shadow-sm"
+                  >
+                    {checklist.isEditing ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <input
+                            id={`checklist-name-${checklist.id}`}
+                            type="text"
+                            value={checklist.name}
+                            onChange={(e) => {
+                              dispatch({
+                                type: 'UPDATE_CHECKLIST',
+                                payload: {
+                                  index,
+                                  checklist: {
+                                    ...checklist,
+                                    name: e.target.value,
+                                  },
+                                },
+                              });
+                            }}
+                            onBlur={() => {
+                              if (checklist.name.trim()) {
+                                dispatch({
+                                  type: 'UPDATE_CHECKLIST',
+                                  payload: {
+                                    index,
+                                    checklist: {
+                                      ...checklist,
+                                      isEditing: false,
+                                    },
+                                  },
+                                });
+                              } else {
+                                dispatch({
+                                  type: 'REMOVE_CHECKLIST',
+                                  payload: index,
+                                });
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className="w-full px-0 py-2 text-lg font-medium bg-transparent border-b-2 border-gray-100 focus:border-gray-900 focus:outline-none transition-colors"
+                            placeholder="Checklist title"
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={() =>
-                            setAssignees(
-                              assignees.filter((id) => id !== assigneeId)
-                            )
+                            dispatch({
+                              type: 'REMOVE_CHECKLIST',
+                              payload: index,
+                            })
                           }
-                          className="text-red-600 hover:text-red-700"
+                          className="text-red-500 hover:text-red-600 ml-4"
                         >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
+                          <TrashIcon className="h-4 w-4" />
                         </button>
-                      )}
-                    </div>
-                  ))}
-                  {isEditing && canEdit && (
-                    <button
-                      type="button"
-                      className="w-full py-2 text-blue-600 hover:text-blue-700 text-sm flex items-center justify-center"
-                    >
-                      <svg
-                        className="w-5 h-5 mr-1"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                        />
-                      </svg>
-                      Add Assignee
-                    </button>
-                  )}
-                </div>
-              </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div
+                          className="flex-1 cursor-pointer hover:opacity-70 transition-opacity"
+                          onClick={() => startEditingChecklist(checklist.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">
+                              Title:
+                            </span>
+                            <h4 className="font-medium text-lg">
+                              {checklist.name}
+                            </h4>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            dispatch({
+                              type: 'REMOVE_CHECKLIST',
+                              payload: index,
+                            })
+                          }
+                          className="text-red-500 hover:text-red-600 ml-4"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
 
-              <div className="flex justify-end space-x-3 pt-4 border-t">
+                    {!checklist.isEditing && (
+                      <div className="space-y-3">
+                        {checklist.items.map((item, itemIndex) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-3 group"
+                          >
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={item.isCompleted}
+                                onChange={(e) => {
+                                  handleChecklistItemChange(index, itemIndex, {
+                                    ...item,
+                                    isCompleted: e.target.checked,
+                                  });
+                                }}
+                                className="peer h-4 w-4 rounded border-2 appearance-none focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                style={{ borderColor: item.color }}
+                                disabled={
+                                  itemIndex === checklist.items.length - 1 &&
+                                  item.item === ''
+                                }
+                              />
+                              <CheckIcon
+                                className="absolute h-3 w-3 top-0.5 left-0.5 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none"
+                                style={{ color: item.color }}
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={item.item}
+                              onChange={(e) => {
+                                handleChecklistItemChange(index, itemIndex, {
+                                  ...item,
+                                  item: e.target.value,
+                                });
+                              }}
+                              className="flex-1 px-0 py-1 text-sm bg-transparent border-b border-transparent hover:border-gray-100 focus:border-gray-900 focus:outline-none transition-colors"
+                              placeholder={
+                                itemIndex === checklist.items.length - 1
+                                  ? 'Add item'
+                                  : ''
+                              }
+                            />
+                            {itemIndex < checklist.items.length - 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleChecklistItemRemove(index, itemIndex)
+                                }
+                                className="text-red-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="border-t my-6" />
+
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                  onClick={addChecklist}
+                  className="flex items-center gap-2 text-gray-500 hover:text-gray-700 group"
                 >
-                  Close
+                  <div className="relative">
+                    <div
+                      className="h-4 w-4 rounded border-2 transition-colors group-hover:border-gray-700"
+                      style={{ borderColor: getRandomColor() }}
+                    />
+                    <CheckIcon
+                      className="absolute h-3 w-3 top-0.5 left-0.5"
+                      style={{ color: getRandomColor() }}
+                    />
+                  </div>
+                  <span>Add Checklist</span>
                 </button>
-                {canEdit && (
-                  <button
-                    type="submit"
-                    disabled={
-                      isSubmitting || Object.keys(changedFields).length === 0
-                    }
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save Changes'}
-                  </button>
-                )}
               </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </>
+            </div>
+
+            <div className="flex justify-end space-x-4 mt-8">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 text-black bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors text-base font-medium"
+              >
+                Cancel
+              </button>
+              {canEdit && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !hasChanges}
+                  className="px-6 py-2.5 text-white bg-black rounded-full hover:bg-gray-800 transition-colors text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

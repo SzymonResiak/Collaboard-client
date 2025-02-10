@@ -27,7 +27,7 @@ interface BoardCardProps {
   currentUserId: string;
   onClick: () => void;
   favourite?: boolean;
-  onFavouriteChange?: () => void;
+  onFavouriteChange?: (newValue: boolean) => void;
 }
 
 export default function BoardCard({
@@ -54,6 +54,8 @@ export default function BoardCard({
   const handleFavouriteClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
+      onFavouriteChange?.(!favourite);
+
       const response = await fetch(`/api/boards/${id}`, {
         method: 'PATCH',
         headers: {
@@ -65,10 +67,9 @@ export default function BoardCard({
       });
 
       if (!response.ok) {
+        onFavouriteChange?.(favourite);
         throw new Error('Failed to update favourite status');
       }
-
-      onFavouriteChange?.();
     } catch (error) {
       console.error('Error updating favourite status:', error);
     }
@@ -84,20 +85,22 @@ export default function BoardCard({
     <>
       <div
         onClick={onClick}
-        className="group cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-all w-[420px] h-[260px] flex flex-col rounded-xl"
+        className="group cursor-pointer overflow-hidden shadow-sm hover:shadow-md transition-all w-[500px] h-[300px] flex flex-col rounded-[32px]"
         style={{ backgroundColor: color }}
       >
-        <div className="flex-1 p-4">
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="text-xl font-semibold text-gray-900">{name}</h3>
-            <div className="flex items-center gap-2">
+        <div className="flex-1 p-8">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-3xl font-bold text-black leading-none">
+              {name}
+            </h3>
+            <div className="flex items-center gap-4 -mt-2">
               <button
                 onClick={handleFavouriteClick}
-                className="p-1 rounded-full hover:bg-black/10 transition-colors"
+                className="p-3 rounded-full hover:bg-black/5 transition-colors"
               >
                 {favourite ? (
                   <svg
-                    className="w-5 h-5 text-gray-900"
+                    className="w-8 h-8 text-black"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -105,7 +108,7 @@ export default function BoardCard({
                   </svg>
                 ) : (
                   <svg
-                    className="w-5 h-5 text-gray-900"
+                    className="w-8 h-8 text-black"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -121,10 +124,10 @@ export default function BoardCard({
               </button>
               <button
                 onClick={handleEditClick}
-                className="p-1 rounded-full hover:bg-black/10 transition-colors"
+                className="p-3 rounded-full hover:bg-black/5 transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-gray-900"
+                  className="w-8 h-8 text-black"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -139,23 +142,23 @@ export default function BoardCard({
               </button>
             </div>
           </div>
-          <p className="text-gray-900 text-sm line-clamp-2">{description}</p>
         </div>
 
-        <div className="p-4 border-t border-black/10 bg-black/5">
-          <div className="flex flex-wrap gap-2">
+        <div className="p-8">
+          <div className="grid grid-cols-2 gap-y-3">
             {columns.map((column) => {
               const taskCount = getTaskCountForColumn(column);
-              if (taskCount === 0) return null;
               return (
                 <div
                   key={column.name}
-                  className="flex items-center text-sm"
-                  style={{ color: column.color }}
+                  className={`flex items-center text-lg ${
+                    taskCount === 0 ? 'opacity-40' : ''
+                  }`}
                 >
-                  <span>{column.name}: </span>
-                  <span className="font-medium ml-1">{taskCount}</span>
-                  <span className="mx-2 opacity-40">•</span>
+                  <span className="text-black/60">{column.name}:</span>
+                  <span className="ml-3 font-medium text-black">
+                    {taskCount}
+                  </span>
                 </div>
               );
             })}

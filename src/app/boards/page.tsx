@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import BoardCard from '@/components/BoardCard';
 import { BoardColor } from '@/types/colors';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Column {
   id: string;
@@ -77,29 +78,70 @@ export default function BoardsPage() {
     }
   };
 
-  return (
-    <div className="h-full overflow-auto">
-      <h1 className="text-2xl font-bold mb-6">Your Boards</h1>
+  const handleFavouriteChange = (
+    boardId: string,
+    newFavouriteValue: boolean
+  ) => {
+    setBoards((prevBoards) =>
+      prevBoards.map((board) =>
+        board.id === boardId
+          ? { ...board, favourite: newFavouriteValue }
+          : board
+      )
+    );
+  };
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {boards.map((board) => (
-          <BoardCard
-            key={board.id}
-            id={board.id}
-            name={board.name}
-            description={board.description}
-            color={board.color}
-            columns={board.columns || []}
-            tasks={board.tasks || []}
-            admins={board.admins}
-            currentUserId={currentUserId}
-            favourite={board.favourite}
-            onFavouriteChange={refreshBoards}
-            onClick={() =>
-              router.push(`/boards/${encodeURIComponent(board.name)}`)
-            }
-          />
-        ))}
+  // Sortowanie boardów
+  const sortedBoards = [...boards].sort((a, b) => {
+    if (a.favourite && !b.favourite) return -1;
+    if (!a.favourite && b.favourite) return 1;
+    return a.name.localeCompare(b.name, undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    });
+  });
+
+  return (
+    <div className="h-full overflow-auto p-16 scrollbar-thin">
+      <div className="grid grid-cols-3 gap-14 max-w-[1800px] mx-auto relative">
+        <AnimatePresence>
+          {sortedBoards.map((board, index) => (
+            <motion.div
+              key={board.id}
+              layout
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{
+                opacity: { duration: 0.3 },
+                layout: {
+                  duration: 0.5,
+                  type: 'spring',
+                  bounce: 0.15,
+                },
+              }}
+              className="w-fit"
+            >
+              <BoardCard
+                id={board.id}
+                name={board.name}
+                description={board.description}
+                color={board.color}
+                columns={board.columns || []}
+                tasks={board.tasks || []}
+                admins={board.admins}
+                currentUserId={currentUserId}
+                favourite={board.favourite}
+                onFavouriteChange={(newValue) =>
+                  handleFavouriteChange(board.id, newValue)
+                }
+                onClick={() =>
+                  router.push(`/boards/${encodeURIComponent(board.name)}`)
+                }
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

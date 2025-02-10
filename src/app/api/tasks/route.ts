@@ -4,7 +4,6 @@ import { cookies } from 'next/headers';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Request body:', body);
 
     const cookieStore = cookies();
     const token = (await cookieStore).get('accessToken');
@@ -24,7 +23,6 @@ export async function POST(req: Request) {
     });
 
     const data = await response.json();
-    console.log('API Response:', data);
 
     if (!response.ok) {
       console.error('API Error:', data);

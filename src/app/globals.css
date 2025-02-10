@@ -254,3 +254,67 @@ a {
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
   }
 }
+
+/* Scrollbar dla strony z boardami */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 100vh;
+}
+
+.scrollbar-thin::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Calendar styles */
+.rdp {
+  --rdp-cell-size: 40px;
+  --rdp-accent-color: #000;
+  --rdp-background-color: #e7e7e7;
+  margin: 0;
+}
+
+.rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: #e7e7e7;
+}
+
+.rdp-day_selected {
+  background-color: black !important;
+}
+
+.calendar-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.5rem;
+  background-color: white;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.form-field option {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-field option:checked {
+  background-color: #f3f4f6;
+  color: black;
+}

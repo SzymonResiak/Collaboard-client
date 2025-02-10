@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import RootClientLayout from '@/components/RootClientLayout';
 import { Nunito } from 'next/font/google';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { Providers } from './providers';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -34,12 +36,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${nunito.variable} font-nunito antialiased bg-gray-100`}
       >
-        <RootClientLayout
-          geistSansVariable={geistSans.variable}
-          geistMonoVariable={geistMono.variable}
-        >
-          {children}
-        </RootClientLayout>
+        <Providers>
+          <ThemeProvider>
+            <RootClientLayout
+              geistSansVariable={geistSans.variable}
+              geistMonoVariable={geistMono.variable}
+            >
+              {children}
+            </RootClientLayout>
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

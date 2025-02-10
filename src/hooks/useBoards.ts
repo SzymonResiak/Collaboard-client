@@ -2,7 +2,12 @@ import { useState, useEffect } from 'react';
 
 export const useBoards = () => {
   const [boards, setBoards] = useState<
-    Array<{ id: string; name: string; group?: string }>
+    Array<{
+      id: string;
+      name: string;
+      group?: string;
+      columns: Array<{ name: string; color: string }>;
+    }>
   >([]);
 
   useEffect(() => {

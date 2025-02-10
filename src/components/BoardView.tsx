@@ -2,8 +2,12 @@
 
 import { BoardColor } from '@/types/colors';
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { StrictModeDroppable } from './StrictModeDroppable';
+import { useBoards } from '@/hooks/useBoards';
+import { useGroups } from '@/hooks/useGroups';
+import TaskDialog from './TaskDialog';
+import useFetchBoards from '@/hooks/useFetchBoards';
 
 interface Task {
   id: string;
@@ -26,7 +30,6 @@ interface BoardViewProps {
   admins: string[];
   currentUserId: string;
   onBack: () => void;
-  onTaskClick: (taskId: string) => void;
   updatedTaskId?: string | null;
   updateStatus?: 'success' | 'error' | null;
   onTaskMove: (
@@ -60,7 +63,6 @@ export default function BoardView({
   admins,
   currentUserId,
   onBack,
-  onTaskClick,
   updatedTaskId,
   updateStatus,
   onTaskMove,
@@ -68,6 +70,18 @@ export default function BoardView({
   const isAdmin = admins.includes(currentUserId);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [localTasks, setLocalTasks] = useState(tasks);
+  const boards = useBoards();
+  const groups = useGroups();
+  const { boards: fetchedBoards, loading, error } = useFetchBoards();
+
+  const currentBoard = useMemo(() => {
+    const board = boards?.find((b) => b.name === name);
+    return board;
+  }, [boards, name]);
+
+  const hasAssignees = useMemo(() => {
+    return currentBoard?.group !== undefined;
+  }, [currentBoard?.group]);
 
   useEffect(() => {
     setLocalTasks(tasks);
@@ -107,6 +121,35 @@ export default function BoardView({
     }
   };
 
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const handleTaskDialogClose = () => {
+    setSelectedTask(null);
+  };
+
+  const handleTaskSave = async (updatedTask: Task) => {
+    try {
+      // Aktualizuj lokalny stan
+      setLocalTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task
+        )
+      );
+
+      // Zamknij dialog
+      setSelectedTask(null);
+    } catch (error) {
+      console.error('Error saving task:', error);
+      handleTaskError(updatedTask.id);
+    }
+  };
+
+  const handleTaskError = (taskId: string) => {};
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
@@ -129,12 +172,6 @@ export default function BoardView({
               />
             </svg>
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 select-none">
-              Your Boards
-            </h1>
-            <p className="text-gray-600 select-none">{description}</p>
-          </div>
         </div>
         <div className="flex items-center space-x-4">
           {isAdmin && (
@@ -207,7 +244,7 @@ export default function BoardView({
                               {...provided.dragHandleProps}
                               onClick={(e) => {
                                 e.preventDefault();
-                                onTaskClick(task.id);
+                                handleTaskClick(task);
                               }}
                               style={{
                                 ...provided.draggableProps.style,
@@ -256,6 +293,23 @@ export default function BoardView({
           </div>
         </DragDropContext>
       </div>
+
+      {selectedTask && (
+        <TaskDialog
+          task={selectedTask}
+          currentUserId={currentUserId}
+          boardAdmins={admins}
+          boardMembers={
+            currentBoard?.group
+              ? groups?.find((g) => g.id === currentBoard.group)?.members
+              : []
+          }
+          hasAssignees={hasAssignees}
+          onClose={handleTaskDialogClose}
+          onSave={handleTaskSave}
+          onError={handleTaskError}
+        />
+      )}
     </div>
   );
 }

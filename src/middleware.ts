@@ -4,7 +4,6 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const accessToken = request.cookies.get('accessToken');
 
-  // Lista chronionych ścieżek
   const protectedPaths = ['/boards', '/board', '/api/boards'];
 
   const isProtectedPath = protectedPaths.some((path) =>
