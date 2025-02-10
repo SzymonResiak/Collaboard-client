@@ -226,7 +226,7 @@ export default function TaskDialog({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) {
-      e.preventDefault(); // Zapobiegaj domyślnej akcji formularza
+      e.preventDefault();
     }
 
     if (!canEdit || !isEditing) return;
@@ -320,7 +320,6 @@ export default function TaskDialog({
         id: newChecklistId,
         name: '',
         items: [
-          // Dodaj pusty element checkboxa
           {
             id: generateId(),
             item: '',
@@ -383,7 +382,6 @@ export default function TaskDialog({
     dispatch({ type: 'SET_ASSIGNEES', payload: newAssignees });
   };
 
-  // Dodaj nowy useMemo do sprawdzania czy są zmiany
   const hasChanges = useMemo(() => {
     return Object.keys(changedFields).length > 0;
   }, [changedFields]);
